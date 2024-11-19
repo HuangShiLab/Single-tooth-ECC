@@ -14,10 +14,10 @@ The metagenomic sequencing data used for the analysis presented in this study ar
 
 ## Key resources table
 | REAGENT or RESOURCE | SOURCE | IDENTIFIER |
-|-------|-------------------|--------------------------|
+|:-|:-|:-|
 | **Biological samples** |
 | Plaque samples | This study | N/A |
-| **Software and algorithms** |
+| **Software and algorithms** | | |
 | FastQC v0.11.9 | |https://www.bioinformatics.babraham.ac.uk/projects/fastqc|
 | KneadData v0.7.2 | | https://huttenhower.sph.harvard.edu/kneaddata/ |
 | HUMAnN2 | Franzosa et al. | https://huttenhower.sph.harvard.edu/humann2/ |
