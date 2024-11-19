@@ -24,8 +24,8 @@ The metagenomic sequencing data used for the analysis presented in this study ar
 | PICRUSt2 | Douglas et al. | https://huttenhower.sph.harvard.edu/picrust/ |
 | Phylo-rPCA | Martino et al. | https://github.com/biocore/gemelli/blob/master/ipynb/tutorials/Phylogenetic-RPCA-moving-pictures.ipynb |
 | rPCA | Martino et al. | https://github.com/biocore/gemelli/blob/master/ipynb/tutorials/RPCA-moving-pictures.ipynb |
-| Python (v.3.9.6) | Python | https://www.python.org/downloads/release/python-396 |
-| R (v.4.1.3) | R Foundation | https://www.r-project.org |
+| Python (v.3.8.16) | Python | https://www.python.org/downloads/release/python-396 |
+| R (v.4.3.3) | R Foundation | https://www.r-project.org |
 
 ## ACKNOWLEDGEMENTS
 This work was funded by Grants 32030003 and 31600099 from National Natural Science Foundation of China, and SKLOD2015OF07 from State Key Laboratory of Oral Diseases. SH thanks the funding support from the Health and Medical Research Fund (HMRF) of Hong Kong (10212276). FY thanks the funding support from National Natural Science Foundation of China (31300424, 81670979) and Qingdao Natural Science Foundation, China (24-4-4-zrjj-158-jch). FT thanks the funding support from General Program of Natural Science Foundation of Shandong Province (ZR2024MH235) and Taishan Scholar Award For Young Expert (tsqn201909126), as well as the funding supports from Qingdao Key Health Discipline Development Fund (2022-2024), Qingdao Clinical Research Center for Oral Diseases (22-3-7-lczx-7-nsh), and Shandong Provincial Key Medical and Health Discipline of Oral Medicine. 
