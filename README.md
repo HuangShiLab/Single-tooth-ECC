@@ -1,4 +1,4 @@
-NOTE: This repository provided all source data and codes for generation of all results in the single-tooth ECC manuscript.
+**NOTE: This repository provided all source data and codes for generation of all results in the single-tooth ECC manuscript.**
 
 ## Title: Single-tooth resolved, whole-mouth prediction of early childhood caries via spatiotemporal variations of plaque microbiota
 
