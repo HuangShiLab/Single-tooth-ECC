@@ -1,0 +1,466 @@
+---
+title: "Figure 1E"
+author: "Yufeng"
+date: "2023-11-24"
+output:
+  pdf_document: default
+---
+
+# PERMONOVA Test in Cohort A
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+p <- c("reshape2","ggplot2", "dplyr", "viridis", "colorspace", "RColorBrewer", "cowplot", "grid", "gridExtra", "gtable",
+       "ggpubr", "patchwork", "vegan")
+usePackage <- function(p) {
+  if (!is.element(p, installed.packages()[,1]))
+    install.packages(p, dep=TRUE, repos="https://cloud.r-project.org/")
+  suppressWarnings(suppressMessages(invisible(require(p, character.only=TRUE))))
+}
+invisible(lapply(p, usePackage))
+
+source("../Utilities/data_trimming_util.R")
+
+outdir <- "../../Results/Figure_1/Figure_1E"
+if(! dir.exists(outdir)) {
+  dir.create(outdir, recursive = T)
+}
+```
+
+```{r}
+metadata_file <- "../../Data/637/637_metadata.txt" 
+taxonomic_dist_file <- "../../Results/Dist_matrix/637_taxonomic_phylo_rPCA/637_taxonomic_phylo_rpca_dist.txt"
+functional_dist_file <- "../../Results/Dist_matrix/637_functional_rPCA/637_functional_rpca_dist.txt"
+
+metadata <- read.table(metadata_file, header=T, sep="\t", row.names=1, quote="", comment.char="")
+```
+
+```{r}
+file_list <- list(Taxonomy = taxonomic_dist_file, Function = functional_dist_file)
+dm_list<-lapply(file_list, function(x) 
+    read.table(x, header=T, row.names=1, sep="\t", quote="", comment.char = "", check.names = FALSE)
+)
+lapply(dm_list, dim)
+
+dm_list<-lapply(dm_list, function(x){filter_samples_by_sample_ids_in_metadata(x, dm=TRUE, metadata)})
+```
+```{r, echo=FALSE}
+all_group <- c("Status_Host", "dmfs_Host", "Timepoint", "Status_Tooth",
+               "dmfs_Tooth", "Position_Tooth", "HostID", "Age",
+               "HostGroup", "Future_Status_Tooth")
+all_group_f <- c("Status_Host", "Timepoint", "Status_Tooth",
+                 "Position_Tooth", "HostID",
+                 "HostGroup", "Future_Status_Tooth")
+```
+
+1.  Without any block
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+stat_summ_list <- list()
+
+for(i in 1:length(dm_list)){
+    #--------------------------------
+    # Statistical test: Adonis and Anosim
+    #--------------------------------
+    stat_summ <- data.frame(matrix(NA, nrow=length(all_group), ncol=9))
+    rownames(stat_summ) <- all_group
+    colnames(stat_summ) <- c("raw_sample_size", "filtered_sample_size", "num_class", "class_distribution", 
+                           "Adonis.F", "Adonis.R2", "Adonis.P","Anosim.R","Anosim.P")
+    #--------------------------------
+    dm <- dm_list[[i]][[1]]
+    metadata <- dm_list[[i]][[2]]
+    
+    cat(names(file_list)[i],"\n")
+    #suppressWarnings(
+    for(group in all_group){
+        stat_summ[group, 1] <- dim(dm)[1]
+        # filter samples with NA in the metadata
+        filtered_dm_list <- filter_dm_by_NA_in_target_field_of_metadata(dm, metadata, group)
+        if(all(is.na(filtered_dm_list))){
+            next
+            stat_summ[group, 2] <- 0 
+            stat_summ[group, 3:9] <- NA
+        }else{
+            dm_f <- filtered_dm_list$dm
+            metadata_f <- filtered_dm_list$metadata
+            y <- metadata_f[, group]
+            stat_summ[group, 2] <- length(y)
+            #--------------------------------
+            if(nlevels(factor(y))==1){
+                next 
+                cat("All values are identical in ", group,"!\n")
+            }else{
+                if(is.element(group, all_group_f)){
+                    y <- factor(y)
+                    stat_summ[group, 3] <- nlevels(y)
+                    stat_summ[group, 4] <- paste0(levels(y), collapse="|")
+                    if(all(table(y)!=1)){
+                        ano <- anosim(dm_f, y)
+                        stat_summ[group, 8] <- ano.R <- ano$statistic
+                        stat_summ[group, 9] <- ano.P <- ano$signif
+                        cat("ANOSIM (", group, "): \n")
+                        cat("--------------------------------")
+                        print(ano)
+                        ado <- adonis2(dm_f ~ y)
+                        stat_summ[group, 5] <- ado$F[1]
+                        stat_summ[group, 6] <- ado$R2[1]
+                        stat_summ[group, 7] <- ado$`Pr(>F)`[1]
+                        # stat_summ[group, 5] <- ado.F <- ado$aov.tab$F.Model[1]
+                        # stat_summ[group, 6] <- ado.F <- ado$aov.tab$R2[1]
+                        # stat_summ[group, 7] <- ado.P <- ado$aov.tab$P[1]
+                        cat("ADONIS/PERMANOVA (",group,"): \n")
+                        cat("--------------------------------\n")
+                        print(ado)
+                        # print(ado$aov.tab)
+                        cat("--------------------------------\n\n")
+                    }else{
+                        stat_summ[group, 5:9] <- NA
+                    }
+                }else{
+                    y<-as.numeric(as.character(y))
+                    stat_summ[group, 3]  <-  NA
+                    stat_summ[group, 4]  <-  NA
+                    ado <- adonis2(dm_f ~ y)
+                    stat_summ[group, 5] <- ado$F[1]
+                    stat_summ[group, 6] <- ado$R2[1]
+                    stat_summ[group, 7] <- ado$`Pr(>F)`[1]
+                    # stat_summ[group, 5] <- ado.F <- ado$aov.tab$F.Model[1]
+                    # stat_summ[group, 6] <- ado.F <- ado$aov.tab$R2[1]
+                    # stat_summ[group, 7] <- ado.P <- ado$aov.tab$P[1]
+                    cat("ADONIS/PERMANOVA (",group,"): \n")
+                    cat("--------------------------------\n")
+                    print(ado)
+                    # print(ado$aov.tab)
+                    cat("--------------------------------\n\n")
+                }
+            }
+        }
+    }
+    if(is.null(names(stat_summ_list))) {
+        stat_summ_list[[i]] <- stat_summ
+        sink(paste(outdir, "/dist_", i, ".Beta_diversity_summ.xls",sep=""));
+        cat("\t");
+        write.table(stat_summ, quote=FALSE,sep='\t',row.names=TRUE);
+        sink(NULL)
+    } else {
+        stat_summ_list[[names(file_list)[i]]] <- stat_summ
+        sink(paste(outdir, "/", names(file_list)[i], ".Beta_diversity_summ.xls",sep=""));
+        cat("\t");
+        write.table(stat_summ, quote=FALSE,sep='\t',row.names=TRUE);
+        sink(NULL)
+    }
+}
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+
+stat_summ_list2 <- lapply(1:length(stat_summ_list), function(i) data.frame(feature=rownames(stat_summ_list[[i]]),
+                                                             dist=names(file_list)[i], 
+                                                             stat_summ_list[[i]]))
+stat_summ_all<-data.frame(do.call("rbind", stat_summ_list2))
+
+stat_summ_all
+
+write.table(stat_summ_all, paste0(outdir, "/637_Beta_diversity_summ_without_any_block.xls"), 
+            quote=FALSE, sep='\t', row.names=FALSE)
+```
+
+2. Block HostID
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+block_group <- "HostID"
+stat_summ_list <- list()
+
+for(i in 1:length(dm_list)){
+    #--------------------------------
+    # Statistical test: Adonis and Anosim
+    #--------------------------------
+    stat_summ <- data.frame(matrix(NA, nrow=length(all_group), ncol=9))
+    rownames(stat_summ) <- all_group
+    colnames(stat_summ) <- c("raw_sample_size", "filtered_sample_size", "num_class", "class_distribution", 
+                           "Adonis.F", "Adonis.R2", "Adonis.P","Anosim.R","Anosim.P")
+    #--------------------------------
+    dm <- dm_list[[i]][[1]]
+    metadata <- dm_list[[i]][[2]]
+    
+    cat(names(file_list)[i],"\n")
+    #suppressWarnings(
+    for(group in all_group){
+        stat_summ[group, 1] <- dim(dm)[1]
+        # filter samples with NA in the metadata
+        filtered_dm_list <- filter_dm_by_NA_in_target_field_of_metadata(dm, metadata, group)
+        if(all(is.na(filtered_dm_list))){
+            next
+            stat_summ[group, 2] <- 0 
+            stat_summ[group, 3:9] <- NA
+        }else{
+            dm_f <- filtered_dm_list$dm
+            metadata_f <- filtered_dm_list$metadata
+            y <- metadata_f[, group]
+            stat_summ[group, 2] <- length(y)
+            #--------------------------------
+            if(nlevels(factor(y))==1){
+                next 
+                cat("All values are identical in ", group,"!\n")
+            }else{
+                if(is.element(group, all_group_f)){
+                    y <- factor(y)
+                    stat_summ[group, 3] <- nlevels(y)
+                    stat_summ[group, 4] <- paste0(levels(y), collapse="|")
+                    if(all(table(y)!=1)){
+                        ano <- anosim(dm_f, y)
+                        stat_summ[group, 8] <- ano.R <- ano$statistic
+                        stat_summ[group, 9] <- ano.P <- ano$signif
+                        cat("ANOSIM (", group, "): \n")
+                        cat("--------------------------------")
+                        print(ano)
+                        ado <- adonis2(dm_f ~ y, strata = eval(parse(text = paste0("metadata_f$",block_group))))
+			stat_summ[group, 5] <- ado$F[1]
+                        stat_summ[group, 6] <- ado$R2[1]
+                        stat_summ[group, 7] <- ado$`Pr(>F)`[1]
+                        cat("ADONIS/PERMANOVA (",group,"): \n")
+                        cat("--------------------------------\n")
+                        print(ado)
+                        cat("--------------------------------\n\n")
+                    }else{
+                        stat_summ[group, 5:9] <- NA
+                    }
+                }else{
+                    y<-as.numeric(as.character(y))
+                    stat_summ[group, 3]  <-  NA
+                    stat_summ[group, 4]  <-  NA
+                    ado <- adonis2(dm_f ~ y, strata = eval(parse(text = paste0("metadata_f$",block_group))))
+                    stat_summ[group, 5] <- ado$F[1]
+                    stat_summ[group, 6] <- ado$R2[1]
+                    stat_summ[group, 7] <- ado$`Pr(>F)`[1]
+                    cat("ADONIS/PERMANOVA (",group,"): \n")
+                    cat("--------------------------------\n")
+                    print(ado)
+                    cat("--------------------------------\n\n")
+                }
+            }
+        }
+    }
+    if(is.null(names(file_list))) {
+      stat_summ_list[[i]] <- stat_summ
+      sink(paste0(outdir, "/637_dist", i, ".Beta_diversity_summ_blocking_HostID.xls"));
+      cat("\t");
+      write.table(stat_summ, quote=FALSE,sep='\t',row.names=TRUE);
+      sink(NULL)
+    }
+    else {
+      stat_summ_list[[names(file_list)[i]]] <- stat_summ
+      sink(paste0(outdir, "/637_", names(file_list)[i], ".Beta_diversity_summ_blocking_HostID.xls"));
+      cat("\t");
+      write.table(stat_summ, quote=FALSE,sep='\t',row.names=TRUE);
+      sink(NULL)
+    }
+}
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+
+stat_summ_list2 <- lapply(1:length(stat_summ_list), function(i) data.frame(feature=rownames(stat_summ_list[[i]]),
+                                                             dist=names(stat_summ_list)[i], 
+                                                             stat_summ_list[[i]]))
+stat_summ_all<-data.frame(do.call("rbind", stat_summ_list2))
+
+stat_summ_all
+
+write.table(stat_summ_all, paste0(outdir, "/637_Beta_diversity_summ_blocking_HostID.xls"), 
+            quote=FALSE, sep='\t', row.names=FALSE)
+```
+
+3. Block HostID and Timepoint
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+block_group <- "HostID_Timepoint"
+stat_summ_list <- list()
+
+for(i in 1:length(dm_list)){
+    #--------------------------------
+    # Statistical test: Adonis and Anosim
+    #--------------------------------
+    stat_summ <- data.frame(matrix(NA, nrow=length(all_group), ncol=9))
+    rownames(stat_summ) <- all_group
+    colnames(stat_summ) <- c("raw_sample_size", "filtered_sample_size", "num_class", "class_distribution", 
+                           "Adonis.F", "Adonis.R2", "Adonis.P","Anosim.R","Anosim.P")
+    #--------------------------------
+    dm <- dm_list[[i]][[1]]
+    metadata <- dm_list[[i]][[2]]
+    
+    cat(names(file_list)[i],"\n")
+    #suppressWarnings(
+    for(group in all_group){
+        stat_summ[group, 1] <- dim(dm)[1]
+        # filter samples with NA in the metadata
+        filtered_dm_list <- filter_dm_by_NA_in_target_field_of_metadata(dm, metadata, group)
+        if(all(is.na(filtered_dm_list))){
+            next
+            stat_summ[group, 2] <- 0 
+            stat_summ[group, 3:9] <- NA
+        }else{
+            dm_f <- filtered_dm_list$dm
+            metadata_f <- filtered_dm_list$metadata
+            y <- metadata_f[, group]
+            stat_summ[group, 2] <- length(y)
+            #--------------------------------
+            if(nlevels(factor(y))==1){
+                next 
+                cat("All values are identical in ", group,"!\n")
+            }else{
+                if(is.element(group, all_group_f)){
+                    y <- factor(y)
+                    stat_summ[group, 3] <- nlevels(y)
+                    stat_summ[group, 4] <- paste0(levels(y), collapse="|")
+                    if(all(table(y)!=1)){
+                        ano <- anosim(dm_f, y)
+                        stat_summ[group, 8] <- ano.R <- ano$statistic
+                        stat_summ[group, 9] <- ano.P <- ano$signif
+                        cat("ANOSIM (", group, "): \n")
+                        cat("--------------------------------")
+                        print(ano)
+                        ado <- adonis2(dm_f ~ y, strata = eval(parse(text = paste0("metadata_f$",block_group))))
+			stat_summ[group, 5] <- ado$F[1]
+                        stat_summ[group, 6] <- ado$R2[1]
+                        stat_summ[group, 7] <- ado$`Pr(>F)`[1]
+                        cat("ADONIS/PERMANOVA (",group,"): \n")
+                        cat("--------------------------------\n")
+                        print(ado)
+                        cat("--------------------------------\n\n")
+                    }else{
+                        stat_summ[group, 5:9] <- NA
+                    }
+                }else{
+                    y<-as.numeric(as.character(y))
+                    stat_summ[group, 3]  <-  NA
+                    stat_summ[group, 4]  <-  NA
+                    ado <- adonis2(dm_f ~ y, strata = eval(parse(text = paste0("metadata_f$",block_group))))
+                    stat_summ[group, 5] <- ado$F[1]
+                    stat_summ[group, 6] <- ado$R2[1]
+                    stat_summ[group, 7] <- ado$`Pr(>F)`[1]
+                    cat("ADONIS/PERMANOVA (",group,"): \n")
+                    cat("--------------------------------\n")
+                    print(ado)
+                    cat("--------------------------------\n\n")
+                }
+            }
+        }
+    }
+    if(is.null(names(file_list))) {
+      stat_summ_list[[i]] <- stat_summ
+      sink(paste0(outdir, "/637_dist", i, ".Beta_diversity_summ_blocking_HostID_Timepoint.xls"));
+      cat("\t");
+      write.table(stat_summ, quote=FALSE,sep='\t',row.names=TRUE);
+      sink(NULL)
+    }
+    else {
+      stat_summ_list[[names(file_list)[i]]] <- stat_summ
+      sink(paste0(outdir, "/637_", names(file_list)[i], ".Beta_diversity_summ_blocking_HostID_Timepoint.xls"));
+      cat("\t");
+      write.table(stat_summ, quote=FALSE,sep='\t',row.names=TRUE);
+      sink(NULL)
+    }
+}
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+
+stat_summ_list2 <- lapply(1:length(stat_summ_list), function(i) data.frame(feature=rownames(stat_summ_list[[i]]),
+                                                             dist=names(stat_summ_list)[i], 
+                                                             stat_summ_list[[i]]))
+stat_summ_all<-data.frame(do.call("rbind", stat_summ_list2))
+
+stat_summ_all
+
+write.table(stat_summ_all, paste0(outdir, "/637_Beta_diversity_summ_blocking_HostID_Timepoint.xls"), 
+            quote=FALSE, sep='\t', row.names=FALSE)
+```
+
+## Plots
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+stat_summ_without_block <- read.table(paste0(outdir, "/637_Beta_diversity_summ_without_any_block.xls"), 
+                                      sep = "\t", header = T)
+stat_summ_without_block$Group <- "Without_blocking"
+
+stat_summ_blocking_hostid <- read.table(paste0(outdir, "/637_Beta_diversity_summ_blocking_HostID.xls"), 
+                                      sep = "\t", header = T)
+stat_summ_blocking_hostid$Group <- "HostID_blocked"
+
+stat_summ_blocking_hostid_timepoint <- 
+  read.table(paste0(outdir, "/637_Beta_diversity_summ_blocking_HostID_Timepoint.xls"), sep = "\t", header = T)
+stat_summ_blocking_hostid_timepoint$Group <- "HostID_and_Timepoint_blocked"
+
+sum_R2 <- stat_summ_without_block %>%
+          group_by(feature) %>%
+          summarise(sum_R2 = sum(Adonis.R2))
+sum_R2 <- sum_R2[order(sum_R2$sum_R2), ]
+ordered_feature <- sum_R2$feature
+stat_summ_without_block$feature <- factor(stat_summ_without_block$feature,
+                                          levels = ordered_feature,
+                                          ordered = T)
+
+stacked_histogram <- ggplot(stat_summ_without_block, aes(feature, `Adonis.R2`, fill = dist)) +
+  scale_fill_manual(values = brewer.pal(8, "Pastel2")) + 
+  geom_bar(stat="identity", position="stack", color="lightgray", width = 0.7) +
+  coord_flip() +
+  scale_x_discrete(position = "bottom") +
+  scale_y_continuous(position = "bottom") +
+  labs(x = "Group", y = bquote('Adonis '~R^2), fill = "Distance") +
+  theme_classic() +
+  theme(axis.text.x = element_text(color = "black"),
+        axis.title.x = element_text(color = "black"),
+        axis.text.y = element_blank(),
+        axis.title.y = element_blank(),
+        legend.title = element_text(color = "black"),
+        legend.text = element_text(color = "black"),
+        legend.key.size = unit(1, "cm"),
+        panel.background = element_rect(fill="white"),
+        legend.position = "bottom")
+stacked_histogram
+
+all_stat_summ <- rbind(stat_summ_without_block, stat_summ_blocking_hostid, stat_summ_blocking_hostid_timepoint)
+
+all_stat_summ$Group <- factor(all_stat_summ$Group,
+                              levels = unique(all_stat_summ$Group),
+                              ordered = T)
+all_stat_summ$feature <- factor(all_stat_summ$feature,
+                                 levels = ordered_feature,
+                                 ordered = T)
+all_stat_summ$dist <- factor(all_stat_summ$dist,
+                              levels = c("Taxonomy", "Function"),
+                              ordered = T)
+
+all_stat_summ[which(all_stat_summ$`Adonis.P` > 0.05), "ifSig"] <- "NS"
+all_stat_summ[which(all_stat_summ$`Adonis.P` < 0.05), "ifSig"] <- ""
+all_stat_summ[which(all_stat_summ$`Adonis.P` < 0.01), "ifSig"] <- ""
+
+heatmap <- ggplot(all_stat_summ, aes(x = dist, y = feature)) +
+  geom_tile(aes(fill = ifSig, width = 0.9, height = 0.9)) +
+  facet_wrap(~Group, scales = "free_x") +
+  scale_fill_manual(values = c("lightgreen", "lightgray", "lightyellow"),
+                    labels = c("p < 0.01", "NA", "NS"))+
+  geom_text(aes(label = `Adonis.P`), color = "black") +
+  theme(axis.text.x=element_text(angle=90, hjust=1), panel.border = element_blank())+
+  labs(fill = "Adonis.P") +
+  ylab("Group")+
+  xlab("Adonis p-value")+
+  theme_bw() +
+  theme_classic() +
+  theme(axis.text.x = element_text(color = "black"),
+        axis.title.x = element_text(color = "black"),
+        axis.text.y = element_text(color = "black"),
+        axis.title.y = element_text(color = "black"),
+        legend.title = element_text(color = "black"),
+        legend.text = element_text(color = "black"),
+        legend.key.size = unit(1, "cm"),
+        axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        legend.position = "bottom")
+heatmap
+ 
+p <- heatmap + stacked_histogram + plot_layout(ncol = 2)
+p
+ggsave(paste0(outdir, "/637_Adonis_results.pdf"), p, width = 11, height = 7)
+```

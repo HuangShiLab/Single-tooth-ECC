@@ -1,0 +1,118 @@
+---
+title: "Figure 2IJ"
+author: "Yufeng"
+date: "2023-11-29"
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+if(!is.element("crossRanger", installed.packages()[, 1])) devtools::install_github('shihuang047/crossRanger')
+if(!is.element("phyloseq", installed.packages()[, 1])) BiocManager::install("phyloseq")
+
+p <- c("ggplot2", "RColorBrewer", "viridis", "palmerpenguins", "tidyverse", "pheatmap", 
+       "colorspace", "dplyr", "stats", "grDevices", "graphics", "reshape2", "corrplot", 
+       "GGally", "ggimage", "pdftools", "ggpubr", "DistVis", "biomformat", "crossRanger", "phyloseq")
+usePackage <- function(p) {
+  if (!is.element(p, installed.packages()[,1])) {
+    install.packages(p, dep=TRUE, repos="https://cloud.r-project.org/")
+  }
+  suppressWarnings(suppressMessages(invisible(require(p, character.only=TRUE))))
+}
+invisible(lapply(p, usePackage))
+
+source("../Utilities/data_trimming_util.R")
+
+outdir <- "../../Results/Figure_2"
+if(! dir.exists(outdir)) {
+  dir.create(outdir, recursive = T)
+}
+```
+
+```{r}
+Index<-function(mat,A=Increased,B=Decreased){
+  #-------------------------------Data check
+  if(!all(is.na(A))){
+    Mis_A<-A[which(!A %in% colnames(mat))]
+    if(length(Mis_A)>0){
+      cat(length(Mis_A),' "Incresed" varible(s) NOT found in data: ',Mis_A,'\n',sep=' ')
+      A<-A[which(!A %in% Mis_A)]}
+  }
+  if(!all(is.na(B))){
+    Mis_B<-B[which(!B %in% colnames(mat))]
+    if(length(Mis_B)>0){
+      cat(length(Mis_B),' "Decresed" varible(s) NOT found in data: ',Mis_B,'\n',sep=' ')
+      B<-B[which(!B %in% Mis_B)]}
+  }
+  
+  cat(length(A),' "Incresed" varible(s) found and used for Index calculation: ',A,'\n',sep=' ')
+  cat(length(B),' "Decresed" varible(s) found and used for Index calculation: ',B,'\n',sep=' ')
+  log.mat<-function(mat,base=2){
+    #mat[mat==0]<-0.000001
+    mat[mat < 1e-6] <- 1e-6
+    log.mat<-log(mat,base)
+    return(log.mat)
+  }
+  log_mat<-log.mat(mat)
+  #-------------------------------Index calculation
+  if(!all(is.na(A)) & !all(is.na(B))){
+    Index<-apply(log_mat,1,function(x){sum(x[A])/length(A)-sum(x[B])/length(B)})
+  }else if(all(is.na(A)) & !all(is.na(B))){
+    Index<-apply(log_mat,1,function(x){sum(x[B])/length(B)})
+  }else{
+    Index<-apply(log_mat,1,function(x){sum(x[A])/length(A)})
+  }
+  
+  objectList   <- list()
+  objectList$Index <- Index
+  objectList$A <- A
+  objectList$B <- B
+  
+  invisible(objectList)
+}
+```
+
+```{r}
+count_file_1867 <- "../../Data/1867/taxonomy/1867_taxonomic_ASV_count_table.tsv"
+metadata_file <- "../../Data/1867/1867_metadata.txt"
+taxonomy_file <- "../../Data/1867/taxonomy/1867_taxonomic_feature_taxon_SILVA.txt"
+```
+
+```{r, message = FALSE}
+count <- read.table(count_file_1867, header = TRUE, sep = "\t", row.names = 1, comment.char = "", skip = 1)
+count <- t(count)
+abd <- count / rowSums(count)
+
+metadata <- read.table(metadata_file, sep = "\t", header = T, row.names = 1)
+identical(rownames(abd), rownames(metadata))
+
+taxonomy <- read.table(taxonomy_file, sep = "\t", header = T, row.names = 1, comment.char = "")
+```
+```{r, echo = FALSE, print = FALSE}
+H2H_metadata <- subset(metadata, HostGroup == "H2H")
+H2H_abd <- subset(abd, rownames(abd) %in% rownames(H2H_metadata))
+identical(rownames(H2H_metadata), rownames(H2H_abd))
+
+y <- factor(H2H_metadata$NicheICM)
+result_clr <- BetweenGroup.test(H2H_abd, y, clr_transform=TRUE)
+```
+
+```{r}
+sig_result_clr <- subset(result_clr, IfSig == "Sig")
+H2H_sig_abd <- H2H_abd[ , colnames(abd) %in% rownames(sig_result_clr)]
+matched_index <- match(colnames(H2H_sig_abd), rownames(taxonomy))
+colnames(H2H_sig_abd) <- taxonomy[matched_index, "Brief_Taxon_ASV"]
+```
+
+```{r}
+H2H_sig_abd <- as.matrix(H2H_sig_abd)
+df <- melt(H2H_sig_abd)
+df <- merge(df, metadata, by.x = 1, by.y = 0, all.x = T, all.y = F)
+df <- df %>%
+  group_by(Var2, Position2) %>%
+  summarise(mean_abd = mean(value))
+```
+
+
