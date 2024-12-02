@@ -137,7 +137,7 @@ for(i in 1:length(dm_list)){
             }
         }
     }
-    if(is.null(names(stat_summ_list))) {
+    if(is.null(names(file_list))) {
         stat_summ_list[[i]] <- stat_summ
         sink(paste(outdir, "/dist_", i, ".Beta_diversity_summ.xls",sep=""));
         cat("\t");
@@ -262,7 +262,7 @@ for(i in 1:length(dm_list)){
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
 
 stat_summ_list2 <- lapply(1:length(stat_summ_list), function(i) data.frame(feature=rownames(stat_summ_list[[i]]),
-                                                             dist=names(stat_summ_list)[i], 
+                                                             dist=names(file_list)[i], 
                                                              stat_summ_list[[i]]))
 stat_summ_all<-data.frame(do.call("rbind", stat_summ_list2))
 
@@ -368,7 +368,7 @@ for(i in 1:length(dm_list)){
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
 
 stat_summ_list2 <- lapply(1:length(stat_summ_list), function(i) data.frame(feature=rownames(stat_summ_list[[i]]),
-                                                             dist=names(stat_summ_list)[i], 
+                                                             dist=names(file_list)[i], 
                                                              stat_summ_list[[i]]))
 stat_summ_all<-data.frame(do.call("rbind", stat_summ_list2))
 

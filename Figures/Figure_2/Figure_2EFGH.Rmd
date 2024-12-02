@@ -1,7 +1,6 @@
 ---
 title: "Figure 2EFGH"
 author: "Yufeng"
-date: "2023-11-24"
 output:
   pdf_document: default
 ---

@@ -13,11 +13,11 @@ invisible(lapply(p, usePackage))
 #-------------------------------
 rf.opts<-list(outdir=NA, ntree=5000, verbose=FALSE, nfolds=10)
 #source("ranger_util_20190520.R")
-source("../../data_trimming_util.R")
+source("../Utilities/data_trimming_util.R")
 #-------------------------------
-datafile <- "../../../data/1867/taxonomy/silva_taxonomy_collapse/level8/rarefied-feature-table.biom"
-sample_metadata <- "../../../data/1867/taxonomy/1867_taxonomy_metadata.tsv"
-feature_metadata <- "../../../data/1867/taxonomy/ML_features_table/1867_taxonomy_feature_taxon.txt"
+datafile <- "../../Data/1867/taxonomy/1867_taxonomic_rarefied_feature_abd_table.biom"
+sample_metadata <- "../../Data/1867/1867_metadata.txt"
+feature_metadata <- "../../Data/1867/taxonomy/1867_taxonomic_feature_taxon_SILVA.txt"
 prefix_name<-"taxonomy"
 s_category<-"Position2"
 c_category<-"Future_Status_Tooth"
@@ -26,7 +26,7 @@ p_cutoff=0.05
 q_cutoff=0.05
 p.adj.method="BH"
 h=10
-outpath <- paste("../../../Results/Figure_6/MiC/rarefied_",prefix_name,"_Position_crossRF_out/", sep="")
+outpath <- paste0("../../Results/Figure_3/sMiC/rarefied_",prefix_name,"_Position_crossRF_out/")
 dir.create(outpath, recursive = T)
 
 #-------------------------------
@@ -39,12 +39,13 @@ mic_dist_features <- c("spatial_dist_weighted_mean_md", "mean_md", "mean_md_H_T5
                        "mean_md_H_T73", "mean_md_H_T74", "mean_md_H_T75", "mean_md_H_T81", "mean_md_H_T82",
                        "mean_md_H_T83", "mean_md_H_T84", "mean_md_H_T85", "mean_md_H_T5161")
 if(grepl("biom$", datafile)){
-  biom <- read_biom(datafile)
-  df <- data.frame(as.matrix(biom_data(biom)), check.names = FALSE)
-  df <- df[, which((!colnames(df) %in% clinical_features) & (!colnames(df) %in% mic_dist_features))]
+  df <- read_hdf5_biom(datafile)
+  df <- biom(df)
+  df <- biom_data(df)
+  df <- t(as.matrix(df))
+  df <- data.frame(df, check.names = F)
 }else{
   df<-read.table(datafile, header=T, row.names=1, sep="\t", quote="", comment.char = "")
-  df <- df[, which((!colnames(df) %in% clinical_features) & (!colnames(df) %in% mic_dist_features))]
 }
 df<-df[order(rownames(df)), ]
 #df<-sweep(df, 1, rowSums(df), "/")
@@ -57,6 +58,7 @@ if(!is.na(feature_metadata)){
                         row.names = NULL,
                         stringsAsFactors = FALSE, comment.char = "")
   fmetadata <- subset(fmetadata, fmetadata[, 1] %in% colnames(df))
+  fmetadata <- fmetadata[order(fmetadata[ ,1]), ]
 }
 
 add_ann<-function(tab, fmetadata, tab_id_col=1, fmetadata_id_col=1){
@@ -87,7 +89,7 @@ print(identical(colnames(df), fmetadata[, 1]))
 #'-------------------------------
 #' Train data: filtering
 #'-------------------------------
-data_list<-filter_samples_by_sample_ids_in_metadata(df, metadata)
+data_list<-filter_samples_by_sample_ids_in_metadata(df, dm = F, metadata)
 #'-------------------------------
 #' Train data: filter out samples with null values in target_field
 #'-------------------------------
@@ -878,18 +880,155 @@ p<-ggplot(all_comb, aes(x=y, y=Caries)) +
 p
 ggsave(filename=paste(outpath,"Pred_in_",c_category, "_among_StatusToothChange_Timepoint.facets.boxplot.pdf",sep=""),plot=p, width=9, height=8)
 
+library(pROC)
+library(ggplot2)
+
+cal_auc_by_position <- function(x, y) {
+  rocobj <- roc(x, y, smooth = F)
+  auc <- auc(rocobj)[1]
+  return (auc)
+}
+
+# AUROC计算
+AUROC <- function(df, outfile, label) {
+  rocobj <- roc(df$y, df$Caries, smooth = F)       # 曲线是否光滑，当光滑时，无法计算置信区间
+  
+  # 计算AUROC值
+  auc<-auc(rocobj)[1]
+  # AUROC的置信区间
+  auc_low<-ci(rocobj,of="auc")[1]
+  auc_high<-ci(rocobj,of="auc")[3]
+  print(auc)
+  print(auc_low)
+  print(auc_high)
+  
+  # 计算最佳临界值（Youden指数）
+  # coords <- coords(rocobj, "best", ret=c("threshold", "sensitivity", "specificity"))
+  # best_cutoff <- coords[1, 1]
+  # best_sensitivity <- coords[1, 2]
+  # best_specificity <- coords[1, 3]
+  
+  # 计算置信区间
+  ciobj <- ci.se(rocobj,specificities=seq(0, 1, 0.01))
+  data_ci<-ciobj[1:101,1:3]
+  data_ci<-as.data.frame(data_ci)
+  x=as.numeric(rownames(data_ci))
+  data_ci<-data.frame(x,data_ci)
+  
+  # 绘图
+  plot <- ggroc(rocobj,
+                color="red",
+                size=1,
+                legacy.axes = F # FALSE时 横坐标为1-0 specificity；TRUE时 横坐标为0-1 1-specificity
+    ) +
+    # geom_point(aes(x = best_specificity, y = best_sensitivity), color="blue") +
+    # geom_text(aes(x = best_specificity, y = best_sensitivity, 
+    #               label = paste0("Cutoff:", round(best_cutoff, 3), 
+    #                             "\nSensitivity:", round(best_sensitivity, 2), 
+    #                             "\nSpecificity:", round(best_specificity, 2))),
+    #           hjust = -0.2, vjust = 1, size = 5) +
+    theme_classic()+
+    theme(axis.line = element_line(color = "black"),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.background = element_blank(),
+          panel.border = element_blank(),
+          strip.text = element_text(size = 15),
+          strip.background = element_rect(colour = "white"),
+          legend.title = element_text(size = 15), 
+          legend.text = element_text(size = 15),
+          axis.title.x = element_text(size = 15),
+          axis.title.y = element_text(size = 15),
+          axis.text.x = element_text(size = 15),
+          axis.text.y = element_text(size = 15),
+          legend.position = "none") +
+    geom_segment(aes(x = 1, y = 0, xend = 0, yend = 1),        # 绘制对角线
+                 colour='grey', 
+                 linetype = 'dotdash'
+    ) +
+    geom_ribbon(data = data_ci,                                # 绘制置信区间
+                aes(x=x, ymin=X2.5., ymax=X97.5.),               # 当legacy.axes=TRUE时， 把x=x改为x=1-x
+                fill = 'lightblue',
+                alpha=0.5) +
+    geom_text(aes(x = 0.3, y = 0.2, label = paste0("AUROC = ", round(auc, 2), "\n", label)), size = 6)
+  plot
+  ggsave(filename=paste0(outfile, ".pdf"), plot=plot, width=3.5, height=3.5)
+  
+  
+  positions <- unique(df$Position2)
+  auc <- matrix(0, nrow = length(positions), ncol = 1)
+  auc <- as.data.frame(auc)
+  rownames(auc) <- positions
+  colnames(auc) <- "AUROC"
+  for(pos in positions) {
+    data <- df[which(df$Position2 == pos), ]
+    x <- data$y
+    y <- data$Caries
+    # rocobj <- roc(x, y, smooth = F)
+    # auc[pos, 1] <- auc(rocobj)[1])
+    auc[pos, 1] <- cal_auc_by_position(x, y)
+  }
+  print(auc)
+  write.table(auc, paste0(outfile, "_by_position.xls"), sep = "\t", quote = F, row.names = T, col.names = NA)
+  
+  auc$position <- rownames(auc)
+  auc$feature <- paste("AUROC", label, sep = "\n")
+  p_AUROC<-ggplot(auc, aes(x=as.factor(position), y=as.factor(feature))) + 
+    xlab("Tooth Position") +
+    geom_tile(aes(fill = AUROC, width=0.9, height=0.9), size=6) +
+    labs(names = "AUROC") +
+    scale_color_manual(values=c("white","grey80"))+
+    geom_text(aes(label = round(AUROC, 2)), size = 10, color = "white") +
+    scale_fill_viridis(limit = c(0.5, 1))+ 
+    theme_bw() + theme_classic() +
+    theme(axis.line = element_blank(),
+          axis.ticks = element_blank(),
+          axis.text = element_text(size = 14),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.background = element_blank(),
+          panel.border = element_blank(),
+          strip.text = element_text(size = 14),
+          strip.background = element_rect(colour = "white"),
+          legend.title = element_text(size = 14), 
+          legend.text = element_text(size = 14),
+          plot.title = element_text(size = 14), 
+          axis.title.x = element_text(size = 14),
+          axis.title.y = element_blank(),
+          axis.text.x = element_text(size = 14),
+          axis.text.y = element_text(size = 14),
+          legend.position = "right")
+  p_AUROC
+  ggsave(filename=paste0(outfile, "_by_position.heatmap.pdf"),plot=p_AUROC, width=12, height=2)
+}
+
+# 读取ROC数据文件
+df = read.table(paste0(outpath, "/RF_pred_summ.xls"), sep = "\t", header = T, row.names = 1)
+df_composition <- table(df[, c("y", "Position2")])
+write.table(df_composition, paste0(outpath, "/df_composition.txt"),  sep = "\t", quote = F, row.names = T, col.names = NA)
+
+HHRH_df <- subset(df, y %in% c("ConfidentH", "RelativeH"))
+AUROC(HHRH_df, paste0(outpath, "/taxonomy_HHRH_RF_pred_summ_ROC"), "(ConfidentH\nVS\nRelativeH)")
+
+HHCC_df <- subset(df, y %in% c("ConfidentH", "Caries"))
+AUROC(HHCC_df, paste0(outpath, "/taxonomy_HHCC_RF_pred_summ_ROC"), "(ConfidentH\nVS\nCaries)")
 
 
+# Validation with Cohort A
 # load the data from the 638-member cohort
-vld_data_file <- "../../../data/637/taxonomy/ML_features_table/637_taxonomy_feature_table.biom"
-vld_sample_metadata <- "../../../data/637/taxonomy/637_taxonomy_metadata.tsv"
-vld_feature_metadata <- "../../../data/637/taxonomy/ML_features_table/637_taxonomy_feature_taxon.txt"
+vld_data_file <- "../../Data/637/taxonomy/637_taxonomic_feature_abd_table.biom"
+vld_sample_metadata <- "../../Data/637/637_metadata.txt"
+vld_feature_metadata <- "../../Data/637/taxonomy/637_taxonomic_feature_taxonomy.txt"
 #-------------------------------
 # Biom table input
 #-------------------------------
 if(grepl("biom$", vld_data_file)){
-  vld_biom <- read_biom(vld_data_file)
-  vld_df <- data.frame(t(as.matrix(biom_data(vld_biom))), check.names = FALSE)
+  vld_biom <- read_hdf5_biom(vld_data_file)
+  vld_biom <- biom(vld_biom)
+  vld_df <- biom_data(vld_biom)
+  vld_df <- as.matrix(t(vld_df))
+  vld_df <- data.frame(vld_df, check.names = F)
+  vld_df <- vld_df[, which((!colnames(vld_df) %in% clinical_features) & (!colnames(vld_df) %in% mic_dist_features))]
 }else{
   vld_df<-read.table(vld_data_file, header=T, row.names=1, sep="\t", quote="", comment.char = "")
 }
@@ -901,8 +1040,8 @@ vld_df<-vld_df[order(rownames(vld_df)), ]
 if(!is.na(vld_feature_metadata)){
   #fmetadata<-read.table(feature_metadata,header=T, sep="\t", fill = TRUE, comment.char = "")
   vld_fmetadata<-read.table(vld_feature_metadata,header=T, sep='\t', quote = "",
-                        row.names = NULL,
-                        stringsAsFactors = FALSE, comment.char = "")
+                            row.names = NULL,
+                            stringsAsFactors = FALSE, comment.char = "")
 }
 
 add_ann<-function(tab, fmetadata, tab_id_col=1, fmetadata_id_col=1){
@@ -922,7 +1061,7 @@ all_vld_group<-colnames(vld_metadata)<-colnames(vld_allmetadata)
 #'-------------------------------
 #' Train data: filtering
 #'-------------------------------
-vld_data_list<-filter_samples_by_sample_ids_in_metadata(vld_df, vld_metadata)
+vld_data_list<-filter_samples_by_sample_ids_in_metadata(vld_df, metadata = vld_metadata)
 # clinical_cols <- c("n_s_c_tooth", "sum_dmfs", "weighted_sum_dmfs", "weighted_mean_dmfs")
 # vld_data_list$data<-data.frame(vld_data_list$data, vld_data_list$metadata[, clinical_cols])
 #'-------------------------------
@@ -933,8 +1072,8 @@ vld_data_list<-filter_samples_by_sample_ids_in_metadata(vld_df, vld_metadata)
 #' Train data: filter out samples in particular groups
 #'-------------------------------
 vld_data_list<-filter_samples_by_groups_in_target_field_of_metadata(vld_data_list$data, vld_data_list$metadata,
-                                                                target_field = "Tooth_num", negate=FALSE,
-                                                                groups = c("T51_61", "T54", "T55", "T64", "T65", "T74", "T75", "T84", "T85"))
+                                                                    target_field = "Tooth_num", negate=FALSE,
+                                                                    groups = c("T51_61", "T54", "T55", "T64", "T65", "T74", "T75", "T84", "T85"))
 
 # c("51", "54", "55", "64", "65", "74", "75", "84", "85")
 # c("T11", "T14", "T15", "T24", "T25", "T34", "T35", "T44", "T45")
@@ -1032,7 +1171,7 @@ cal_auc_by_position <- function(x, y) {
 # AUROC计算
 AUROC <- function(df, outfile, label) {
   rocobj <- roc(df$y, df$Caries, smooth = F)       # 曲线是否光滑，当光滑时，无法计算置信区间
-
+  
   # 计算AUROC值
   auc<-auc(rocobj)[1]
   # AUROC的置信区间
@@ -1041,20 +1180,20 @@ AUROC <- function(df, outfile, label) {
   print(auc)
   print(auc_low)
   print(auc_high)
-
+  
   # 计算置信区间
   ciobj <- ci.se(rocobj,specificities=seq(0, 1, 0.01))
   data_ci<-ciobj[1:101,1:3]
   data_ci<-as.data.frame(data_ci)
   x=as.numeric(rownames(data_ci))
   data_ci<-data.frame(x,data_ci)
-
+  
   # 绘图
   plot <- ggroc(rocobj,
                 color="red",
                 size=1,
                 legacy.axes = F # FALSE时 横坐标为1-0 specificity；TRUE时 横坐标为0-1 1-specificity
-    ) +
+  ) +
     theme_classic()+
     theme(axis.line = element_line(color = "black"),
           panel.grid.major = element_blank(),
@@ -1079,10 +1218,10 @@ AUROC <- function(df, outfile, label) {
                 fill = 'lightblue',
                 alpha=0.5) +
     geom_text(aes(x = 0.3, y = 0.2, label = paste0("AUROC = ", round(auc, 2), "\n", label)), size = 6)
-
+  
   ggsave(filename=paste0(outfile, ".pdf"), plot=plot, width=3.5, height=3.5)
-
-
+  
+  
   positions <- unique(df$Position2)
   auc <- matrix(0, nrow = length(positions), ncol = 1)
   auc <- as.data.frame(auc)
@@ -1098,7 +1237,7 @@ AUROC <- function(df, outfile, label) {
   }
   print(auc)
   write.table(auc, paste0(outfile, "_by_position.xls"), sep = "\t", quote = F, row.names = T, col.names = NA)
-
+  
   auc$position <- rownames(auc)
   auc$feature <- paste("AUROC", label, sep = "\n")
   p_AUROC<-ggplot(auc, aes(x=as.factor(position), y=as.factor(feature))) +
@@ -1194,3 +1333,4 @@ plot <- ggroc(rocobj,
   geom_text(aes(x = 0.3, y = 0.2, label = paste0("AUROC = ", round(auc, 2), "\n(ConfidentH\nVS\nCaries)")), size = 6)
 
 ggsave(filename=paste0(outpath, "/taxonomy_vld_HHCC_AUROC.pdf"), plot=plot, width=3.5, height=3.5)
+

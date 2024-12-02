@@ -1,7 +1,6 @@
 ---
 title: "Figure 2BD"
 author: "Yufeng"
-date: "2023-11-24"
 output:
   pdf_document: default
 ---
@@ -101,7 +100,7 @@ identical(rownames(pcs), rownames(metadata))
 
 plot <- pc1_position_group_boxplot(pcs, metadata, mapping)
 plot
-ggsave(filename=paste(outdir, "/Fig2A_1867_taxonomic_phylo_rpca_PC1.pdf", sep=""), plot=plot, width=10, height=3.5)
+ggsave(filename=paste(outdir, "/Figure_2B_1867_taxonomic_phylo_rpca_PC1.pdf", sep=""), plot=plot, width=10, height=3.5)
 ```
 
 Figure 2D
@@ -111,5 +110,5 @@ identical(rownames(pcs), rownames(metadata))
 
 plot <- pc1_position_group_boxplot(pcs, metadata, mapping)
 plot
-ggsave(filename=paste(outdir, "/Fig2C_1867_functional_rpca_PC1.pdf", sep=""), plot=plot, width=10, height=3.5)
+ggsave(filename=paste(outdir, "/Figure_2D_1867_functional_rpca_PC1.pdf", sep=""), plot=plot, width=10, height=3.5)
 ```
