@@ -24,4 +24,4 @@ identical(rownames(asv), rownames(df))
 new_df <- cbind(asv, df)
 new_df <- new_df[, order(colnames(new_df))]
 new_df <- t(new_df)
-write.table(new_df, "1867_taxonomic_rarefied_feature_abd_table.tsv", sep = "\t", quote = F, row.names = T, col.names = NA)
+write.table(new_df, "../../Results/Feature_table/1867_taxonomic_rarefied_feature_abd_table.tsv", sep = "\t", quote = F, row.names = T, col.names = NA)

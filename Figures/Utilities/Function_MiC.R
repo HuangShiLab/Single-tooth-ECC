@@ -15,10 +15,10 @@ rf.opts<-list(outdir=NA, ntree=5000, verbose=FALSE, nfolds=10)
 #source("ranger_util_20190520.R")
 source("../Utilities/data_trimming_util.R")
 #-------------------------------
-datafile <- "../../Data/1867/taxonomy/1867_taxonomic_rarefied_feature_abd_table.biom"
+datafile <- "../../Data/1867/function/1867_functional_feature_abd_table.biom"
 sample_metadata <- "../../Data/1867/1867_metadata.txt"
-feature_metadata <- "../../Data/1867/taxonomy/1867_taxonomic_feature_taxon_SILVA.txt"
-prefix_name<-"taxonomy"
+feature_metadata <- "../../Data/1867/function/1867_functional_annotation.txt"
+prefix_name<-"Function"
 s_category<-"Position2"
 c_category<-"Future_Status_Tooth"
 AddTaxonomy=TRUE
@@ -26,8 +26,10 @@ p_cutoff=0.05
 q_cutoff=0.05
 p.adj.method="BH"
 h=10
-outpath <- paste0("../../Results/Figure_3/sMiC/rarefied_",prefix_name,"_Position_crossRF_out/")
-dir.create(outpath, recursive = T)
+outpath <- paste("../../Results/RF_results/MiC/",prefix_name,"_Position_crossRF_out/", sep="")
+if(!dir.exists(outpath)) {
+  dir.create(outpath, recursive = T)
+}
 
 #-------------------------------
 # Biom table input
@@ -44,8 +46,10 @@ if(grepl("biom$", datafile)){
   df <- biom_data(df)
   df <- t(as.matrix(df))
   df <- data.frame(df, check.names = F)
+  df <- df[, which((!colnames(df) %in% clinical_features) & (!colnames(df) %in% mic_dist_features))]
 }else{
   df<-read.table(datafile, header=T, row.names=1, sep="\t", quote="", comment.char = "")
+  df <- df[, which((!colnames(df) %in% clinical_features) & (!colnames(df) %in% mic_dist_features))]
 }
 df<-df[order(rownames(df)), ]
 #df<-sweep(df, 1, rowSums(df), "/")
@@ -58,7 +62,6 @@ if(!is.na(feature_metadata)){
                         row.names = NULL,
                         stringsAsFactors = FALSE, comment.char = "")
   fmetadata <- subset(fmetadata, fmetadata[, 1] %in% colnames(df))
-  fmetadata <- fmetadata[order(fmetadata[ ,1]), ]
 }
 
 add_ann<-function(tab, fmetadata, tab_id_col=1, fmetadata_id_col=1){
@@ -117,6 +120,7 @@ if(file.exists(res_file)){
                                  p.adj.method=p.adj.method, q_cutoff=q_cutoff, nfolds=5, verbose=FALSE, ntree=500)
   save(rf_clf_res, file=res_file)
 }
+
 rf_clf_res$feature_imps_list<-lapply(rf_clf_res$feature_imps_list, function(x) {x[x$mean_all==0, "rf_imps"]<-NA; return(x)})
 
 rf_clf_res.summ<-plot_clf_res_list(rf_clf_res, p_cutoff=0.05, p.adj.method = p.adj.method, q_cutoff=0.05, outdir=outpath)
@@ -319,7 +323,7 @@ all_Taxon_df<- all_wilcox_res %>%
                    imp_rank_min= min(rf_imps_rank, na.rm = T) #,
                    #imp_rank_min_Enr=ifelse(length(rf_imp_rank)>1 && !all(is.na(rf_imps_rank)), Enr[which.min(rf_imp_rank)], as.character(Enr))
                    #imp_rank_min_mean_logfc=mean_logfc[which.min(rf_imp_rank)]
-                   )
+  )
 
 write.table(all_Taxon_df, paste(outpath, "all_Taxon_OTU.RF_imps.tsv", sep=""), sep="\t", quote=FALSE, row.names = FALSE)
 cat("# of sum values: ", dim(all_Taxon_df)[1], '\n')
@@ -592,7 +596,7 @@ pred_x_list<-split(data_CHRH_list$data, data_CHRH_list$metadata[, s_category])
 pred_y_list<-split(data_CHRH_list$metadata[, c_category], data_CHRH_list$metadata[, s_category])
 
 rf_clf.pred<-function(rf_model_list, x_list, y_list, newx_list, newy_list, positive_class=NA)
-  {
+{
   L<-length(rf_model_list)
   positive_class<-ifelse(is.na(positive_class), levels(factor(y_list[[1]]))[1], positive_class)
   try(if(!identical(L, length(x_list), length(y_list))) stop("The length of x list, y list and rf model list should be identical."))
@@ -647,7 +651,7 @@ rf_clf.pred<-function(rf_model_list, x_list, y_list, newx_list, newy_list, posit
       pred_newy<-factor(predict(oob$rf.model, newx, type="response")$predictions)
     }
     pred_prob<-pred_prob[, order(colnames(pred_prob))] # to avoid unanticipated order of numeric levels of factor y
-     # ranger only
+    # ranger only
     colnames(pred_prob)<- levels(oob$y)
     levels(pred_newy)<- levels(oob$y)
     print(table(newy,pred_newy))
@@ -689,14 +693,14 @@ sink(paste(outpath,"RF_pred_summ.xls",sep=""));write.table(all_comb,quote=FALSE,
 p <- ggplot(all_comb, aes(x=y, y=Caries)) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(aes(color=y), position=position_jitterdodge(jitter.width= 0.2,dodge.width = 0.8),size=1,alpha=0.4) +
-  scale_colour_manual(values = viridis(4), name = "Actual status of tooth") +
+  scale_colour_manual(values = viridis(4), name = "Future_status_of_tooth") +
   # geom_signif(comparisons = list(c("ConfidentH", "RelativeH"), c("ConfidentH", "C_H"),
   #                                c("RelativeH", "C_H")),
   #             map_signif_level = function(p) {if(p < 0.01) {p = "**"} else if(p < 0.05) {p = "*"} else {p = "NS"}},
   #             test = "wilcox.test", textsize = 4, step_increase = 0.1,
   #             test.args = list(exact = FALSE, correct = FALSE, conf.int = TRUE,
   #                              conf.level = 0.95)) + # 添加wilcoxon test结果，并使不同分组的检验间隔0.01
-  ylab("MiC")+ xlab("Actual status of tooth")+
+  ylab("MiC")+ xlab("Future_status_of_tooth")+
   ylim(c(0, 1))+
   #geom_hline(yintercept=0.5, linetype="dashed")+
   theme_bw()+
@@ -721,8 +725,8 @@ ggsave(filename=paste(outpath,"Pred_in_",c_category,".boxplot.pdf",sep=""),plot=
 p<-ggplot(all_comb, aes(x=y, y=Caries)) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(aes(color=y), position=position_jitterdodge(jitter.width= 0.2,dodge.width = 0.8),size=1,alpha=0.4) +
-  scale_colour_manual(values = viridis(4), name = "Actual status of tooth") +
-  ylab("MiC")+ xlab("Actual status of tooth")+
+  scale_colour_manual(values = viridis(4), name = "Future_status_of_tooth") +
+  ylab("MiC")+ xlab("Future_status_of_tooth")+
   ylim(c(0, 1))+
   geom_hline(yintercept=0.5, linetype="dashed")+
   facet_wrap(~Position2, nrow = 1)+
@@ -748,8 +752,8 @@ ggsave(filename=paste(outpath,"Pred_in_",c_category, "_among_", s_category,".fac
 p<-ggplot(all_comb, aes(x=y, y=Caries)) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(aes(color=y), position=position_jitterdodge(jitter.width= 0.2,dodge.width = 0.8),size=1,alpha=0.4) +
-  scale_colour_manual(values = viridis(4), name = "Actual status of tooth") +
-  ylab("MiC")+ xlab("Actual status of tooth")+
+  scale_colour_manual(values = viridis(4), name = "Future_status_of_tooth") +
+  ylab("MiC")+ xlab("Future_status_of_tooth")+
   ylim(c(0, 1))+
   #geom_hline(yintercept=0.5, linetype="dashed")+
   facet_wrap(~Timepoint, nrow = 1)+
@@ -775,8 +779,8 @@ ggsave(filename=paste(outpath,"Pred_in_",c_category, "_among_Timepoint.facets.bo
 p<-ggplot(all_comb, aes(x=y, y=Caries)) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(aes(color=y), position=position_jitterdodge(jitter.width= 0.2,dodge.width = 0.8),size=1,alpha=0.4) +
-  scale_colour_manual(values = viridis(4), name = "Actual status of tooth") +
-  ylab("MiC")+ xlab("Actual status of tooth")+
+  scale_colour_manual(values = viridis(4), name = "Future_status_of_tooth") +
+  ylab("MiC")+ xlab("Future_status_of_tooth")+
   ylim(c(0, 1))+
   geom_hline(yintercept=0.5, linetype="dashed")+
   facet_wrap(~StatusHostChange, nrow = 1)+
@@ -802,8 +806,8 @@ ggsave(filename=paste(outpath,"Pred_in_",c_category, "_among_StatusHostChange.fa
 p<-ggplot(all_comb, aes(x=y, y=Caries)) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(aes(color=y), position=position_jitterdodge(jitter.width= 0.2,dodge.width = 0.8),size=1,alpha=0.4) +
-  scale_colour_manual(values = viridis(4), name = "Actual status of tooth") +
-  ylab("MiC")+ xlab("Actual status of tooth")+
+  scale_colour_manual(values = viridis(4), name = "Future_status_of_tooth") +
+  ylab("MiC")+ xlab("Future_status_of_tooth")+
   ylim(c(0, 1))+
   geom_hline(yintercept=0.5, linetype="dashed")+
   facet_wrap(~StatusToothChange, nrow = 1)+
@@ -829,8 +833,8 @@ ggsave(filename=paste(outpath,"Pred_in_",c_category, "_among_StatusToothChange.f
 p<-ggplot(all_comb, aes(x=y, y=Caries)) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(aes(color=y), position=position_jitterdodge(jitter.width= 0.2,dodge.width = 0.8),size=1,alpha=0.4) +
-  scale_colour_manual(values = viridis(4), name = "Actual status of tooth") +
-  ylab("MiC")+ xlab("Actual status of tooth")+
+  scale_colour_manual(values = viridis(4), name = "Future_status_of_tooth") +
+  ylab("MiC")+ xlab("Future_status_of_tooth")+
   ylim(c(0, 1))+
   geom_hline(yintercept=0.5, linetype="dashed")+
   facet_grid(Timepoint~StatusHostChange)+
@@ -857,8 +861,8 @@ ggsave(filename=paste(outpath,"Pred_in_",c_category, "_among_StatusHostChange_Ti
 p<-ggplot(all_comb, aes(x=y, y=Caries)) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(aes(color=y), position=position_jitterdodge(jitter.width= 0.2,dodge.width = 0.8),size=1,alpha=0.4) +
-  scale_colour_manual(values = viridis(4), name = "Actual status of tooth") +
-  ylab("MiC")+ xlab("Actual status of tooth")+
+  scale_colour_manual(values = viridis(4), name = "Future_status_of_tooth") +
+  ylab("MiC")+ xlab("Future_status_of_tooth")+
   ylim(c(0, 1))+
   geom_hline(yintercept=0.5, linetype="dashed")+
   facet_grid(Timepoint~StatusToothChange)+
@@ -880,145 +884,11 @@ p<-ggplot(all_comb, aes(x=y, y=Caries)) +
 p
 ggsave(filename=paste(outpath,"Pred_in_",c_category, "_among_StatusToothChange_Timepoint.facets.boxplot.pdf",sep=""),plot=p, width=9, height=8)
 
-library(pROC)
-library(ggplot2)
-
-cal_auc_by_position <- function(x, y) {
-  rocobj <- roc(x, y, smooth = F)
-  auc <- auc(rocobj)[1]
-  return (auc)
-}
-
-# AUROC计算
-AUROC <- function(df, outfile, label) {
-  rocobj <- roc(df$y, df$Caries, smooth = F)       # 曲线是否光滑，当光滑时，无法计算置信区间
-  
-  # 计算AUROC值
-  auc<-auc(rocobj)[1]
-  # AUROC的置信区间
-  auc_low<-ci(rocobj,of="auc")[1]
-  auc_high<-ci(rocobj,of="auc")[3]
-  print(auc)
-  print(auc_low)
-  print(auc_high)
-  
-  # 计算最佳临界值（Youden指数）
-  # coords <- coords(rocobj, "best", ret=c("threshold", "sensitivity", "specificity"))
-  # best_cutoff <- coords[1, 1]
-  # best_sensitivity <- coords[1, 2]
-  # best_specificity <- coords[1, 3]
-  
-  # 计算置信区间
-  ciobj <- ci.se(rocobj,specificities=seq(0, 1, 0.01))
-  data_ci<-ciobj[1:101,1:3]
-  data_ci<-as.data.frame(data_ci)
-  x=as.numeric(rownames(data_ci))
-  data_ci<-data.frame(x,data_ci)
-  
-  # 绘图
-  plot <- ggroc(rocobj,
-                color="red",
-                size=1,
-                legacy.axes = F # FALSE时 横坐标为1-0 specificity；TRUE时 横坐标为0-1 1-specificity
-    ) +
-    # geom_point(aes(x = best_specificity, y = best_sensitivity), color="blue") +
-    # geom_text(aes(x = best_specificity, y = best_sensitivity, 
-    #               label = paste0("Cutoff:", round(best_cutoff, 3), 
-    #                             "\nSensitivity:", round(best_sensitivity, 2), 
-    #                             "\nSpecificity:", round(best_specificity, 2))),
-    #           hjust = -0.2, vjust = 1, size = 5) +
-    theme_classic()+
-    theme(axis.line = element_line(color = "black"),
-          panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          panel.background = element_blank(),
-          panel.border = element_blank(),
-          strip.text = element_text(size = 15),
-          strip.background = element_rect(colour = "white"),
-          legend.title = element_text(size = 15), 
-          legend.text = element_text(size = 15),
-          axis.title.x = element_text(size = 15),
-          axis.title.y = element_text(size = 15),
-          axis.text.x = element_text(size = 15),
-          axis.text.y = element_text(size = 15),
-          legend.position = "none") +
-    geom_segment(aes(x = 1, y = 0, xend = 0, yend = 1),        # 绘制对角线
-                 colour='grey', 
-                 linetype = 'dotdash'
-    ) +
-    geom_ribbon(data = data_ci,                                # 绘制置信区间
-                aes(x=x, ymin=X2.5., ymax=X97.5.),               # 当legacy.axes=TRUE时， 把x=x改为x=1-x
-                fill = 'lightblue',
-                alpha=0.5) +
-    geom_text(aes(x = 0.3, y = 0.2, label = paste0("AUROC = ", round(auc, 2), "\n", label)), size = 6)
-  plot
-  ggsave(filename=paste0(outfile, ".pdf"), plot=plot, width=3.5, height=3.5)
-  
-  
-  positions <- unique(df$Position2)
-  auc <- matrix(0, nrow = length(positions), ncol = 1)
-  auc <- as.data.frame(auc)
-  rownames(auc) <- positions
-  colnames(auc) <- "AUROC"
-  for(pos in positions) {
-    data <- df[which(df$Position2 == pos), ]
-    x <- data$y
-    y <- data$Caries
-    # rocobj <- roc(x, y, smooth = F)
-    # auc[pos, 1] <- auc(rocobj)[1])
-    auc[pos, 1] <- cal_auc_by_position(x, y)
-  }
-  print(auc)
-  write.table(auc, paste0(outfile, "_by_position.xls"), sep = "\t", quote = F, row.names = T, col.names = NA)
-  
-  auc$position <- rownames(auc)
-  auc$feature <- paste("AUROC", label, sep = "\n")
-  p_AUROC<-ggplot(auc, aes(x=as.factor(position), y=as.factor(feature))) + 
-    xlab("Tooth Position") +
-    geom_tile(aes(fill = AUROC, width=0.9, height=0.9), size=6) +
-    labs(names = "AUROC") +
-    scale_color_manual(values=c("white","grey80"))+
-    geom_text(aes(label = round(AUROC, 2)), size = 10, color = "white") +
-    scale_fill_viridis(limit = c(0.5, 1))+ 
-    theme_bw() + theme_classic() +
-    theme(axis.line = element_blank(),
-          axis.ticks = element_blank(),
-          axis.text = element_text(size = 14),
-          panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          panel.background = element_blank(),
-          panel.border = element_blank(),
-          strip.text = element_text(size = 14),
-          strip.background = element_rect(colour = "white"),
-          legend.title = element_text(size = 14), 
-          legend.text = element_text(size = 14),
-          plot.title = element_text(size = 14), 
-          axis.title.x = element_text(size = 14),
-          axis.title.y = element_blank(),
-          axis.text.x = element_text(size = 14),
-          axis.text.y = element_text(size = 14),
-          legend.position = "right")
-  p_AUROC
-  ggsave(filename=paste0(outfile, "_by_position.heatmap.pdf"),plot=p_AUROC, width=12, height=2)
-}
-
-# 读取ROC数据文件
-df = read.table(paste0(outpath, "/RF_pred_summ.xls"), sep = "\t", header = T, row.names = 1)
-df_composition <- table(df[, c("y", "Position2")])
-write.table(df_composition, paste0(outpath, "/df_composition.txt"),  sep = "\t", quote = F, row.names = T, col.names = NA)
-
-HHRH_df <- subset(df, y %in% c("ConfidentH", "RelativeH"))
-AUROC(HHRH_df, paste0(outpath, "/taxonomy_HHRH_RF_pred_summ_ROC"), "(ConfidentH\nVS\nRelativeH)")
-
-HHCC_df <- subset(df, y %in% c("ConfidentH", "Caries"))
-AUROC(HHCC_df, paste0(outpath, "/taxonomy_HHCC_RF_pred_summ_ROC"), "(ConfidentH\nVS\nCaries)")
-
-
 # Validation with Cohort A
-# load the data from the 638-member cohort
-vld_data_file <- "../../Data/637/taxonomy/637_taxonomic_feature_abd_table.biom"
-vld_sample_metadata <- "../../Data/637/637_metadata.txt"
-vld_feature_metadata <- "../../Data/637/taxonomy/637_taxonomic_feature_taxonomy.txt"
+# load the data from the 637-member cohort
+vld_data_file <- "../../data/637/function/637_functional_l3_abd_table.biom"
+vld_sample_metadata <- "../../data/637/637_metadata.txt"
+vld_feature_metadata <- "../../data/637/function/637_functional_annotation.txt"
 #-------------------------------
 # Biom table input
 #-------------------------------
@@ -1026,11 +896,12 @@ if(grepl("biom$", vld_data_file)){
   vld_biom <- read_hdf5_biom(vld_data_file)
   vld_biom <- biom(vld_biom)
   vld_df <- biom_data(vld_biom)
-  vld_df <- as.matrix(t(vld_df))
-  vld_df <- data.frame(vld_df, check.names = F)
+  vld_df <- as.matrix(vld_df)
+  vld_df <- data.frame(t(vld_df), check.names = F)
   vld_df <- vld_df[, which((!colnames(vld_df) %in% clinical_features) & (!colnames(vld_df) %in% mic_dist_features))]
 }else{
   vld_df<-read.table(vld_data_file, header=T, row.names=1, sep="\t", quote="", comment.char = "")
+  vld_df <- vld_df[, which((!colnames(vld_df) %in% clinical_features) & (!colnames(vld_df) %in% mic_dist_features))]
 }
 vld_df<-vld_df[order(rownames(vld_df)), ]
 #df<-sweep(df, 1, rowSums(df), "/")
@@ -1061,7 +932,7 @@ all_vld_group<-colnames(vld_metadata)<-colnames(vld_allmetadata)
 #'-------------------------------
 #' Train data: filtering
 #'-------------------------------
-vld_data_list<-filter_samples_by_sample_ids_in_metadata(vld_df, metadata = vld_metadata)
+vld_data_list<-filter_samples_by_sample_ids_in_metadata(vld_df, vld_metadata)
 # clinical_cols <- c("n_s_c_tooth", "sum_dmfs", "weighted_sum_dmfs", "weighted_mean_dmfs")
 # vld_data_list$data<-data.frame(vld_data_list$data, vld_data_list$metadata[, clinical_cols])
 #'-------------------------------
@@ -1136,7 +1007,7 @@ p<-ggplot(all_comb, aes(x=y, y=Caries)) +
               map_signif_level = function(p) {if(p < 0.01) {p = "**"} else if(p < 0.05) {p = "*"} else {p = "NS"}},
               test.args = list(exact = FALSE, correct = FALSE, conf.int = TRUE, conf.level = 0.95),
               step_increase = 0.1) +
-  ylab("Spatial MiC")+ xlab("Actual status of tooth")+
+  ylab("Spatial MiC")+ xlab("Future_status_of_tooth")+
   ylim(c(0, 1))+
   geom_hline(yintercept=0.5, linetype="dashed")+
   theme_bw()+
@@ -1275,10 +1146,10 @@ df_composition <- table(df[, c("y", "Position2")])
 write.table(df_composition, paste0(outpath, "/df_composition.txt"),  sep = "\t", quote = F, row.names = T, col.names = NA)
 
 HHRH_df <- subset(df, y %in% c("ConfidentH", "RelativeH"))
-AUROC(HHRH_df, paste0(outpath, "/taxonomy_HHRH_RF_pred_summ_ROC"), "(ConfidentH\nVS\nRelativeH)")
+AUROC(HHRH_df, paste0(outpath, "/function_HHRH_RF_pred_summ_ROC"), "(ConfidentH\nVS\nRelativeH)")
 
 HHCC_df <- subset(df, y %in% c("ConfidentH", "Caries"))
-AUROC(HHCC_df, paste0(outpath, "/taxonomy_HHCC_RF_pred_summ_ROC"), "(ConfidentH\nVS\nCaries)")
+AUROC(HHCC_df, paste0(outpath, "/function_HHCC_RF_pred_summ_ROC"), "(ConfidentH\nVS\nCaries)")
 
 vld_df <- read.table(paste0(outpath, "/vld_RF_pred_summ.xls"), sep = "\t", header = T, row.names = 1)
 hhcc_vld_df <- vld_df[which(vld_df$y %in% c("ConfidentH", "Caries")), ]
@@ -1332,5 +1203,5 @@ plot <- ggroc(rocobj,
               alpha=0.5) +
   geom_text(aes(x = 0.3, y = 0.2, label = paste0("AUROC = ", round(auc, 2), "\n(ConfidentH\nVS\nCaries)")), size = 6)
 
-ggsave(filename=paste0(outpath, "/taxonomy_vld_HHCC_AUROC.pdf"), plot=plot, width=3.5, height=3.5)
+ggsave(filename=paste0(outpath, "/function_vld_HHCC_AUROC.pdf"), plot=plot, width=3.5, height=3.5)
 

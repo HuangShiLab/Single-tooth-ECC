@@ -1,9 +1,12 @@
 library(ggplot2)
 library(ggpubr)
 library(viridis)
-source("../data_trimming_util.R")
+source("../Utilities/data_trimming_util.R")
 
-outdir <- "../../Results/Figure_5/"
+outdir <- "../../Results/Figure_4/"
+if(! dir.exists(outdir)) {
+  dir.create(outdir)
+}
 
 surrounding_teeth = list(
   "T55" = c("T54", "T85", "T84"),
@@ -29,7 +32,7 @@ surrounding_teeth = list(
   "T75" = c("T64", "T65", "T74")
 )
 
-metadata_file="../../data/1867/function/1867_function_metadata.tsv"
+metadata_file="../../data/1867/1867_metadata.txt"
 metadata<-read.table(metadata_file,header=T,sep="\t",row.names=1, quote="", comment.char="")
 
 dist <- dist(metadata[, c("X", "Y", "Z")])
@@ -38,7 +41,7 @@ dist <- as.matrix(dist)
 all_samples <- rownames(metadata)
 healthy_teeth_positions <- unique(subset(metadata, HostGroup == "H2H")$Position2)
 
-function_dist <- read.table("../../data/1867/function/1867_all_ko_rpca/rpca.distance_matrix/distance-matrix.tsv",
+function_dist <- read.table("../../Results/Dist_matrix/1867_functional_rPCA/1867_functional_rpca_dist.txt",
                             sep = "\t", header = T, row.names = 1, check.names = F)
 identical(rownames(function_dist), colnames(function_dist))
 
@@ -78,7 +81,7 @@ p <- ggplot(df1, aes(x = Future_Status_Tooth, y = value, color = Future_Status_T
   geom_boxplot(outlier.shape = NA) + 
   #geom_jitter(aes(color=Future_Status_Tooth), position=position_jitterdodge(jitter.width= 0.2,dodge.width = 0.8),size=1,alpha=0.4) +
   scale_colour_manual(values = viridis(4)) +
-  ylab("value")+ xlab("Actual status of tooth")+
+  ylab("value")+ xlab("Future_status_of_tooth")+
   ylim(0, max(df1$value)+2) + 
   geom_signif(comparisons = list(c("ConfidentH", "RelativeH"),
                                  c("ConfidentH", "Caries")),
@@ -102,14 +105,14 @@ p <- ggplot(df1, aes(x = Future_Status_Tooth, y = value, color = Future_Status_T
         panel.grid = element_blank())
 
 p
-ggsave(filename= paste0(outdir, "/Fig5C_1867_all_function_dist_features1.pdf"),plot=p, width=7, height=3)
+ggsave(filename= paste0(outdir, "/Figure_4C_1867_all_function_dist_features1.pdf"),plot=p, width=7, height=3)
 
 df2 <- subset(df, ! variable %in% c("mean_md", "spatial_dist_weighted_mean_md"))
 p <- ggplot(df2, aes(x = Future_Status_Tooth, y = value, color = Future_Status_Tooth)) + 
   geom_boxplot(outlier.shape = NA) + 
   #geom_jitter(aes(color=Future_Status_Tooth), position=position_jitterdodge(jitter.width= 0.2,dodge.width = 0.8),size=1,alpha=0.4) +
   scale_colour_manual(values = viridis(4)) +
-  ylab("value")+ xlab("Actual status of tooth")+
+  ylab("value")+ xlab("Future_status_of_tooth")+
   ylim(0, max(df2$value)+2) + 
   geom_signif(comparisons = list(c("ConfidentH", "RelativeH"),
                                  c("ConfidentH", "Caries")),
@@ -132,5 +135,5 @@ p <- ggplot(df2, aes(x = Future_Status_Tooth, y = value, color = Future_Status_T
         strip.background = element_blank(), 
         panel.grid = element_blank())
 p
-ggsave(filename= paste0(outdir, "/Fig5E_1867_all_function_dist_features2.pdf"),plot=p, width=7, height=7)
+ggsave(filename= paste0(outdir, "/Figure_4E_1867_all_function_dist_features2.pdf"),plot=p, width=7, height=7)
 

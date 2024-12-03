@@ -7,8 +7,11 @@ usePackage <- function(p) {
 }
 invisible(lapply(p, usePackage))
 
-source("../data_trimming_util.R")
-outdir <- "../../Results/Figure_5/"
+source("../Utilities/data_trimming_util.R")
+outdir <- "../../Results/Figure_4/"
+if(! dir.exists(outdir)) {
+  dir.create(outdir)
+}
 
 surrounding_teeth = list(
   "T55" = c("T54", "T85", "T84"),
@@ -34,7 +37,7 @@ surrounding_teeth = list(
   "T75" = c("T64", "T65", "T74")
 )
 
-metadata_file="../../data/1867/taxonomy/1867_taxonomy_metadata.tsv"
+metadata_file="../../data/1867/1867_metadata.txt"
 metadata<-read.table(metadata_file,header=T,sep="\t",row.names=1, quote="", comment.char="")
 
 dist <- dist(metadata[, c("X", "Y", "Z")])
@@ -82,7 +85,6 @@ for (s1 in all_samples) {
   }
 }
 
-clinical_feature <- t(clinical_features)
 write.table(clinical_features, paste0(outdir, "/1867_clinical_features.txt"),
             sep = "\t", quote = F, row.names = T, col.names = NA)
 
@@ -100,7 +102,7 @@ p <- ggplot(df1, aes(x = Future_Status_Tooth, y = value, color = Future_Status_T
   geom_boxplot(outlier.shape = NA) + 
   #geom_jitter(aes(color=Future_Status_Tooth), position=position_jitterdodge(jitter.width= 0.2,dodge.width = 0.8),size=1,alpha=0.4) +
   scale_colour_manual(values = viridis(4)) +
-  ylab("value")+ xlab("Actual status of tooth")+
+  ylab("value")+ xlab("Future_status_of_tooth")+
   ylim(0, max(df1$value)+6) + 
   geom_signif(comparisons = list(c("ConfidentH", "RelativeH"),
                                  c("ConfidentH", "Caries")),
@@ -123,13 +125,13 @@ p <- ggplot(df1, aes(x = Future_Status_Tooth, y = value, color = Future_Status_T
         strip.background = element_blank(), 
         panel.grid = element_blank())
 p
-ggsave(filename=paste0(outdir, "/Fig5A1_1867_clinical_features1.pdf"),plot=p, width=10, height=3)
+ggsave(filename=paste0(outdir, "/Figure_4A1_1867_clinical_features1.pdf"),plot=p, width=10, height=3)
 
 p <- ggplot(df2, aes(x = Future_Status_Tooth, y = value, color = Future_Status_Tooth)) + 
   geom_boxplot(outlier.shape = NA) + 
   #geom_jitter(aes(color=Future_Status_Tooth), position=position_jitterdodge(jitter.width= 0.2,dodge.width = 0.8),size=1,alpha=0.4) +
   scale_colour_manual(values = viridis(4)) +
-  ylab("value")+ xlab("Actual status of tooth")+
+  ylab("value")+ xlab("Future_status_of_tooth")+
   ylim(0, max(df2$value)+2) + 
   geom_signif(comparisons = list(c("ConfidentH", "RelativeH"),
                                  c("ConfidentH", "Caries")),
@@ -152,12 +154,12 @@ p <- ggplot(df2, aes(x = Future_Status_Tooth, y = value, color = Future_Status_T
         strip.background = element_blank(), 
         panel.grid = element_blank())        
 p
-ggsave(filename=paste0(outdir, "/Fig5A2_1867_clinical_features2.pdf"),plot=p, width=4, height=3)
+ggsave(filename=paste0(outdir, "/Figure_4A2_1867_clinical_features2.pdf"),plot=p, width=4, height=3)
 
 
 
 # clinical features of functional profiling
-metadata_file="../../data/1867/function/1867_function_metadata.tsv"
+metadata_file="../../data/1867/1867_metadata.txt"
 metadata<-read.table(metadata_file,header=T,sep="\t",row.names=1, quote="", comment.char="")
 
 dist <- dist(metadata[, c("X", "Y", "Z")])
